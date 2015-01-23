@@ -42,7 +42,7 @@ def main():
 
         print ""
         print "DB name: ", dbName
-        print "collection name: ", collName
+        print "collection name: ", collName()
         print "subdocument name: ", subdocName
         print "filter query ", filterQuery
         print "mode ", mode
