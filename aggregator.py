@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# This file contains a script that aggregates data from the MMS 'Ping' dataset and outputs the result to a CSV file 
+# This file contains a script that aggregates data from the MMS 'Ping' dataset and outputs the result to a TSV file 
 
 import signal
 import sys
@@ -36,9 +36,9 @@ enableTestCommands = 1
 #     equally weighted, but each deployment may have multiple values of a certain property, e.g. mongod version
 #     so the weight is 1/[the number of different values of the property in the deployment]
 #     e.g. if a deployment has both v2.4 and v2.6, each contributes to 0.5, whereas if only 2.6 exists
-#     it contributes 1 to the final tally
+#     it contributes 1 to the final ta
 aggregateByCluster = 1
-runSelectedAggregator = [1]
+runSelectedAggregator = [2]
 
 # Custom Aggregators
 def ops_aggregator(doc, projection, outputDict):
@@ -56,6 +56,7 @@ def moves_uptime(doc, projection, outputDict):
         roundInts = -int(floor(log10(moves / float(uptime))))+3
         if roundInts >= 0: roundInts = -1
         outputDict[round(moves / uptime, roundInts)] += 1
+
 
 
 def cluster_count(doc, outputDict):
@@ -112,6 +113,7 @@ def outputCsv(outFileName, contentDict, mode):
             
         return
 
+
 def getSubDoc(doc, projection):
     subdoc = doc
     subdocTree = projection.split(".")
@@ -124,10 +126,13 @@ def getSubDoc(doc, projection):
         return None 
     return subdoc
 
+
 def getClusterId(doc, clusterId):
     return
 
+
 criteria = [basic_query, {"ping.configLockpings.20":{"$exists": True}}, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query]
+
 
 # the subdocument to group by
 projections = [
@@ -146,8 +151,10 @@ projections = [
     ["ping.serverStatus.metrics.record.moves","ping.serverStatus.uptime"]
 ]
 
+
 # grouping mode
-modes = [STRING, STRING, STRING, DICT_LENGTH, DICT_LENGTH, STRING, STRING, ops_aggregator, STRING, LENGTH, STRING, LENGTH, moves_uptime]
+modes = [STRING, STRING, LENGTH, DICT_LENGTH, DICT_LENGTH, STRING, STRING, ops_aggregator, STRING, LENGTH, STRING, LENGTH, moves_uptime]
+
 
 def main():
 
