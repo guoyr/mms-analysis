@@ -22,16 +22,23 @@ from pymongo import MongoClient
 STRING = 2 # group by the subdocument literal string
 LENGTH = 1 # group by the length of the subdocument, which is an array
 DICT_LENGTH = 3 # group by the length of the subdocument, which is a dictionary
-CLUSTER_STRING = 4 # same as string, but each cluster counts as 1
-CLUSTER_LENGTH = 5
-CLUSTER_DICT_LENGTH = 6
+
 # list of queries to get a subset of documents
 # basic_query = {"gid":"4d63f8b4e528c81a1fd9dc1c"}
 basic_query = {}
 
 # TEST COMMANDSi
 enableTestCommands = 1
-runSelectedAggregator = [0]
+# there are two ways of analyzing this data
+# 1.  is to use each host as a unit of analysis, in which case each host is equally weighted, 
+#     and contributes to a weight of 1 in the final tally
+# 2.  is to use each MongoDB deployment as a unit of analysis, in which case each deployment is 
+#     equally weighted, but each deployment may have multiple values of a certain property, e.g. mongod version
+#     so the weight is 1/[the number of different values of the property in the deployment]
+#     e.g. if a deployment has both v2.4 and v2.6, each contributes to 0.5, whereas if only 2.6 exists
+#     it contributes 1 to the final tally
+aggregateByCluster = 1
+runSelectedAggregator = [1]
 
 # Custom Aggregators
 def ops_aggregator(doc, projection, outputDict):
@@ -92,8 +99,8 @@ def outputCsv(outFileName, contentDict, mode):
         values = [0 for i in allKeys]
         for clusterHash, clusterDict in contentDict.iteritems():
             for k, v in clusterDict.iteritems():
-                if mode in (CLUSTER_LENGTH, CLUSTER_DICT_LENGTH, CLUSTER_STRING):
-                    values[allKeys.index(k)] += 1
+                if aggregateByCluster:
+                    values[allKeys.index(k)] += 1.0/len(clusterDict)
                 else:
                     values[allKeys.index(k)] += v
 
@@ -140,7 +147,7 @@ projections = [
 ]
 
 # grouping mode
-modes = [STRING, CLUSTER_STRING, CLUSTER_LENGTH, CLUSTER_DICT_LENGTH, CLUSTER_DICT_LENGTH, CLUSTER_STRING, CLUSTER_STRING, ops_aggregator, STRING, CLUSTER_LENGTH, STRING, CLUSTER_LENGTH, moves_uptime]
+modes = [STRING, STRING, STRING, DICT_LENGTH, DICT_LENGTH, STRING, STRING, ops_aggregator, STRING, LENGTH, STRING, LENGTH, moves_uptime]
 
 def main():
 
@@ -187,6 +194,8 @@ def main():
 
                 criterion["ping.hostInfo.system.hostname"] = {"$regex": regx}
 
+                # if there are more than one mongods running on the same host, only one is returned
+                # I'm not sure if there is a scenarios where we would like to consider more than one instances of a 
                 doc = client[dbName][collName].find_one(criterion, fields=fields)
 
 
@@ -207,19 +216,8 @@ def main():
                         outputDict[clusterHash][len(subdoc)] += 1
                 elif mode == STRING:
                     outputDict[clusterHash][subdoc] += 1
-                elif mode == CLUSTER_STRING:
-                    outputDict[clusterHash][subdoc] = 1
                 elif mode == LENGTH:
                     outputDict[clusterHash][len(subdoc)] += 1
-                elif mode == CLUSTER_LENGTH:
-                    outputDict[clusterHash][len(subdoc)] = 1
-                elif mode == CLUSTER_DICT_LENGTH:
-                    try:
-                        outputDict[clusterHash][len(subdoc.keys())] = 1
-                    except AttributeError as e:
-                        print >> sys.stderr, e
-                        # data is not clean, fall back to list length
-                        outputDict[clusterHash][len(subdoc)] = 1
         outputCsv(str(projection) + str(time.time()), outputDict, mode)
 
 if __name__ == '__main__':
