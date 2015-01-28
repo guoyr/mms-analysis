@@ -31,7 +31,7 @@ basic_query = {}
 
 # TEST COMMANDSi
 enableTestCommands = 1
-runSelectedAggregator = [6]
+runSelectedAggregator = [0]
 
 # Custom Aggregators
 def ops_aggregator(doc, projection, outputDict):
@@ -80,9 +80,8 @@ def cluster_count(doc, outputDict):
 # helper methods
 def outputCsv(outFileName, contentDict, mode):
     # writes a 2-element tuple to a csv formatted file
-    with open(outFileName + ".csv", "wb") as csvFile:
+    with open(outFileName + ".tsv", "wb") as csvFile:
         writer = csv.writer(csvFile, delimiter="\t")
-        ifFirstRow = True
 
         #get all the headers
         allKeys = set()
@@ -90,29 +89,21 @@ def outputCsv(outFileName, contentDict, mode):
             allKeys = allKeys.union(set(clusterDict.keys()))
 
         allKeys = list(allKeys)
-        print allKeys
-        if mode in (CLUSTER_STRING, CLUSTER_LENGTH, CLUSTER_DICT_LENGTH):
-            values = [0 for i in allKeys]
-            for clusterHash, clusterDict in contentDict.iteritems():
-                for k, v in clusterDict.iteritems():
+        values = [0 for i in allKeys]
+        for clusterHash, clusterDict in contentDict.iteritems():
+            for k, v in clusterDict.iteritems():
+                if mode in (CLUSTER_LENGTH, CLUSTER_DICT_LENGTH, CLUSTER_STRING):
                     values[allKeys.index(k)] += 1
+                else:
+                    values[allKeys.index(k)] += v
 
-            resultDict = dict(zip(allKeys, values))
-            sortedResult = sorted(resultDict.items(), key=operator.itemgetter(1), reverse=True)
+        resultDict = dict(zip(allKeys, values))
+        sortedResult = sorted(resultDict.items(), key=operator.itemgetter(1), reverse=True)
 
-            writer.writerow([x[0] for x in sortedResult])
-            writer.writerow([x[1] for x in sortedResult])
+        writer.writerow([x[0] for x in sortedResult])
+        writer.writerow([x[1] for x in sortedResult])
             
-            return
-        else:
-            for clusterHash, clusterDict in contentDict.iteritems():
-                keys = sorted(clusterDict.keys())
-                writer.writerow(keys)
-                values = []
-                for k in keys:
-                    values.append(clusterDict[k])
-                writer.writerow(values)
-                ifFirstRow = False
+        return
 
 def getSubDoc(doc, projection):
     subdoc = doc
@@ -149,7 +140,7 @@ projections = [
 ]
 
 # grouping mode
-modes = [CLUSTER_STRING, CLUSTER_STRING, CLUSTER_LENGTH, CLUSTER_DICT_LENGTH, CLUSTER_DICT_LENGTH, CLUSTER_STRING, CLUSTER_STRING, ops_aggregator, STRING, CLUSTER_LENGTH, STRING, CLUSTER_LENGTH, moves_uptime]
+modes = [STRING, CLUSTER_STRING, CLUSTER_LENGTH, CLUSTER_DICT_LENGTH, CLUSTER_DICT_LENGTH, CLUSTER_STRING, CLUSTER_STRING, ops_aggregator, STRING, CLUSTER_LENGTH, STRING, CLUSTER_LENGTH, moves_uptime]
 
 def main():
 
@@ -171,7 +162,6 @@ def main():
             cluster_count(doc, clusterDict)
 
     #dictionary of clusters, each one is a dictionary of the count
-
     outputDict = defaultdict(lambda: defaultdict(int))
 
     for i, (criterion, projection, mode) in enumerate(zip(criteria, projections, modes)):
@@ -190,7 +180,6 @@ def main():
                 except TypeError:
                     # projection is an array 
                     fields = dict((k,1) for k in projection)
-                
                 # get hostname to determine which cluster we're on
                 fields["ping.hostInfo.system.hostname"] = 1
                 
@@ -231,7 +220,6 @@ def main():
                         print >> sys.stderr, e
                         # data is not clean, fall back to list length
                         outputDict[clusterHash][len(subdoc)] = 1
-
         outputCsv(str(projection) + str(time.time()), outputDict, mode)
 
 if __name__ == '__main__':
