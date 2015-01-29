@@ -18,7 +18,7 @@ from pprint import pprint
 from math import log10, floor
 from pymongo import MongoClient
 
-#grouping modes
+#aggregator modes
 STRING = 2 # group by the subdocument literal string
 LENGTH = 1 # group by the length of the subdocument, which is an array
 DICT_LENGTH = 3 # group by the length of the subdocument, which is a dictionary
@@ -29,6 +29,7 @@ basic_query = {}
 
 # TEST COMMANDSi
 enableTestCommands = 1
+
 # there are two ways of analyzing this data
 # 1.  is to use each host as a unit of analysis, in which case each host is equally weighted, 
 #     and contributes to a weight of 1 in the final tally
@@ -38,9 +39,15 @@ enableTestCommands = 1
 #     e.g. if a deployment has both v2.4 and v2.6, each contributes to 0.5, whereas if only 2.6 exists
 #     it contributes 1 to the final ta
 aggregateByCluster = 1
+
+# if test commands is enabled, only aggregators in this list will be run will be run
 runSelectedAggregator = [2]
 
 # Custom Aggregators
+# aggregators take in a doc, the projection and a dictionary containing the output
+# the output dictionary is a dictionary of dictionary of ints
+# typically the first key is the cluster, the nested key is whatever the property is for that cluster
+# and the value is the count/value for that property
 def ops_aggregator(doc, projection, outputDict):
     counterDoc = getSubDoc(doc, projection[0])
     numCores = getSubDoc(doc, projection[1])
@@ -48,6 +55,7 @@ def ops_aggregator(doc, projection, outputDict):
         roundInts = -int(floor(log10(counterDoc / float(numCores))))+0
         if roundInts >= 0: roundInts = -1
         outputDict[round(counterDoc / numCores, roundInts)] += 1
+
 
 def moves_uptime(doc, projection, outputDict):
     moves = getSubDoc(doc, projection[0])
@@ -58,7 +66,7 @@ def moves_uptime(doc, projection, outputDict):
         outputDict[round(moves / uptime, roundInts)] += 1
 
 
-
+# helper methods
 def cluster_count(doc, outputDict):
     # group documents into clusters
     lockPings = getSubDoc(doc, "ping.configLockpings")
@@ -85,9 +93,8 @@ def cluster_count(doc, outputDict):
         outputDict[hash(hostName)] = set([hostName])
 
 
-# helper methods
 def outputCsv(outFileName, contentDict, mode):
-    # writes a 2-element tuple to a csv formatted file
+    # write the output in a csv(tsv) format
     with open(outFileName + ".tsv", "wb") as csvFile:
         writer = csv.writer(csvFile, delimiter="\t")
 
@@ -115,6 +122,8 @@ def outputCsv(outFileName, contentDict, mode):
 
 
 def getSubDoc(doc, projection):
+    # get the subdocuments based on the projection
+    # similar to how projection works in the find command
     subdoc = doc
     subdocTree = projection.split(".")
     try:
@@ -126,11 +135,7 @@ def getSubDoc(doc, projection):
         return None 
     return subdoc
 
-
-def getClusterId(doc, clusterId):
-    return
-
-
+# list of find queries
 criteria = [basic_query, {"ping.configLockpings.20":{"$exists": True}}, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query, basic_query]
 
 
@@ -152,7 +157,7 @@ projections = [
 ]
 
 
-# grouping mode
+# aggregation mode
 modes = [STRING, STRING, LENGTH, DICT_LENGTH, DICT_LENGTH, STRING, STRING, ops_aggregator, STRING, LENGTH, STRING, LENGTH, moves_uptime]
 
 
