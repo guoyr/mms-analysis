@@ -1,0 +1,66 @@
+# config file has the following format:
+# analysis_name:
+#     - criteria, the find criteria to filter the documents
+#     - projection, one field or a list of the fields to show
+#     - mode, how to aggregate the information in the target document
+
+# criteria macro
+basic_query: &bq {}
+
+# mode macros
+length: &length 1 # use the length of the list as key in the output dict
+string: &string 2 # use the value of the document itself as key (must be primitive type, lists are unhashable in python)
+dict_length: &dict_length 3 # use the length of the values of dictionary as key
+
+os_name_all:
+        - *bq
+        - "ping.hostInfo.os.name"
+        - *string
+
+os_name_large_deployment:
+        -  "ping.configLockpings.20":
+                "$exists": True
+        - "ping.hostInfo.os.name"
+        - *string
+
+shard_count:
+        - *bq
+        - "ping.shards"
+        - *length
+
+collection_count:
+        - *bq
+        - "ping.configCollections"
+        - *dict_length
+
+components_count:
+        - *bq
+        - "ping.configLockpings"
+        -  *dict_length
+
+cpu_core_count:
+        - *bq
+        - "ping.hostInfo.system.numCores"
+        - *string
+
+mongo_version:
+        - *bq
+        - "ping.hostInfo.version"
+        - *string
+
+op_per_core:
+        - *bq
+        - 
+                - "ping.serverStatus.opcounters.getmore"
+                - "ping.hostInfo.system.numCores"
+        - "ops_aggregator"
+
+repl_member_count:
+        - *bq
+        - "ping.replStatus.members"
+        - *length 
+
+uptime:
+        - *bq
+        - "ping.serverStatus.uptime"
+        - *string
